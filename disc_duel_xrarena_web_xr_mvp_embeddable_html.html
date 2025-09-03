@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Disc_Duel Championship XRArena • XRHighway</title>
+  <!-- A‑Frame core -->
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
+  <!-- Fallback CDN in case jsDelivr is blocked by the host -->
+  <script>(function(){window.addEventListener('error', function(e){if(!window.AFRAME){var s=document.createElement('script');s.src='https://unpkg.com/aframe@1.5.0/dist/aframe.min.js';document.head.appendChild(s);}});})();</script>
+  <style>
+    :root{
+      --ink:#eef0f5; --muted:#bcc4d3; --panel:#0b0b0f; --stroke:rgba(255,255,255,.12);
+      --sunglow:#ffc14a; --emerald:#2bd78f; --danger:#ff5a6a;
+    }
+    html,body{margin:0;height:100%;background:#000;font-family:ui-sans-serif,system-ui,Inter,Roboto,Arial;overflow:hidden}
+    a-scene{height:100vh;width:100vw;display:block}
+    .hud{position:fixed;inset:12px auto auto 12px;z-index:10;color:var(--ink);}
+    .hud .card{background:linear-gradient(180deg,rgba(11,11,15,.72),rgba(11,11,15,.56));
+      border:1px solid var(--stroke);backdrop-filter:saturate(130%) blur(6px);
+      box-shadow:0 8px 24px rgba(0,0,0,.35), 0 0 28px rgba(255,193,74,.22);
+      border-radius:16px;padding:12px 14px;min-width:240px}
+    .hud h1{margin:0 0 8px;font:800 16px/1.1 ui-sans-serif;letter-spacing:.02em;color:var(--sunglow)}
+    .row{display:flex;gap:8px;align-items:center}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--stroke);background:rgba(255,255,255,.04)}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .btns{display:flex;gap:8px;margin-top:10px}
+    .btn{cursor:pointer;border:1px solid var(--stroke);background:#101016;color:var(--ink);
+      padding:8px 12px;border-radius:12px;font-weight:700;letter-spacing:.03em}
+    .btn:hover{outline:1px solid rgba(255,255,255,.12)}
+    .notice{position:fixed;right:12px;bottom:12px;color:var(--muted);font-size:12px}
+  </style>
+</head>
+<body>
+  <!-- Lightweight HUD (works on desktop & in-headset via laser pointer) -->
+  <div class="hud" id="hud">
+    <div class="card">
+      <h1>DDL Championship • XRArena</h1>
+      <div class="row" style="margin-bottom:6px">
+        <span class="badge"><span class="dot" style="background:var(--emerald)"></span>Team A: <b id="scoreA">0</b></span>
+        <span class="badge"><span class="dot" style="background:var(--sunglow)"></span>Team B: <b id="scoreB">0</b></span>
+        <span class="badge">Diamonds: <b id="diamondCount">0</b></span>
+      </div>
+      <div class="btns">
+        <button class="btn" id="throwLow">Throw • Straight</button>
+        <button class="btn" id="throwHigh">Throw • Big Arc</button>
+        <button class="btn" id="resetBtn">Reset Field</button>
+      </div>
+    </div>
+  </div>
+  <div class="notice">Tip: Use the buttons or aim the VR laser at them. WebXR needs HTTPS.</div>
+
+  <!-- SCENE -->
+  <div id="xr-error" style="position:fixed;inset:auto 12px 12px auto;color:#ff5a6a;z-index:1000;display:none">A‑Frame/WebGL didn’t start. See console (F12) for errors.</div>
+  <a-scene renderer="colorManagement:true;antialias:true" xr-mode-ui="enabled: true" background="color: #0a0a0c">
+    <!-- Camera / Controls (desktop fallback) -->
+    <a-entity id="rig" position="0 1.6 12">
+      <a-entity id="camera" camera look-controls wasd-controls></a-entity>
+      <!-- Laser pointers for button interaction in VR -->
+      <a-entity laser-controls="hand: left"></a-entity>
+      <a-entity laser-controls="hand: right"></a-entity>
+    </a-entity>
+
+    <!-- Lights -->
+    <a-entity light="type:hemisphere; intensity:0.75; color:#dfe9ff; groundColor:#080812" position="0 20 0"></a-entity>
+    <a-entity light="type:directional; intensity:1.15; castShadow:true" position="-10 18 10"></a-entity>
+
+    <!-- Field (100ft x 50ft ≈ 30.5m x 15.25m) -->
+    <a-entity id="field" position="0 0 0">
+      <a-plane width="30.5" height="15.25" color="#0b0b0f" rotation="-90 0 0" material="metalness:0.2; roughness:0.8"></a-plane>
+      <!-- Midline -->
+      <a-plane width="0.05" height="15.25" color="#384055" rotation="-90 0 0" position="0 0.005 0"></a-plane>
+      <!-- Border lines -->
+      <a-plane width="30.5" height="0.05" color="#384055" rotation="-90 0 0" position="0 0.005 -7.625"></a-plane>
+      <a-plane width="30.5" height="0.05" color="#384055" rotation="-90 0 0" position="0 0.005 7.625"></a-plane>
+      <a-plane width="0.05" height="15.25" color="#384055" rotation="-90 0 0" position="-15.25 0.005 0"></a-plane>
+      <a-plane width="0.05" height="15.25" color="#384055" rotation="-90 0 0" position="15.25 0.005 0"></a-plane>
+    </a-entity>
+
+    <!-- Cones (Corners) -->
+    <a-entity id="cones">
+      <a-cone color="#2bd78f" radius-bottom="0.35" radius-top="0.02" height="0.8" position="-15.0 0.4 -7.3"></a-cone>
+      <a-cone color="#2bd78f" radius-bottom="0.35" radius-top="0.02" height="0.8" position="-15.0 0.4 7.3"></a-cone>
+      <a-cone color="#ffc14a" radius-bottom="0.35" radius-top="0.02" height="0.8" position="15.0 0.4 -7.3"></a-cone>
+      <a-cone color="#ffc14a" radius-bottom="0.35" radius-top="0.02" height="0.8" position="15.0 0.4 7.3"></a-cone>
+    </a-entity>
+
+    <!-- Goal Zones (rings) -->
+    <a-ring id="goalA" color="#2bd78f" radius-inner="0.6" radius-outer="0.8" rotation="-90 0 0" position="-15.0 0.02 0"></a-ring>
+    <a-ring id="goalB" color="#ffc14a" radius-inner="0.6" radius-outer="0.8" rotation="-90 0 0" position="15.0 0.02 0"></a-ring>
+
+    <!-- Spawn pads -->
+    <a-circle id="spawnA" color="#203042" radius="0.6" rotation="-90 0 0" position="-13.5 0.01 0"></a-circle>
+    <a-circle id="spawnB" color="#402820" radius="0.6" rotation="-90 0 0" position="13.5 0.01 0"></a-circle>
+
+    <!-- XR Marquee (floating scoreboard to mimic roadside sign) -->
+    <a-entity position="0 3.2 0">
+      <a-plane width="8.4" height="2.4" color="#0b0b0f" material="metalness:.4; roughness:.3; emissive:#000" 
+               shadow="cast:true; receive:true"
+               geometry="primitive: plane;">
+      </a-plane>
+      <a-entity id="marqueeTitle" text="value: XRHighway • Disc_Duel Championship; width: 7.8; align: center; color: #ffc14a" position="0 0.6 0.01"></a-entity>
+      <a-entity id="marqueeLine"  text="value: Tap/Trigger to throw. Big Arc = +Diamonds; width: 7.2; align: center; color: #eef0f5" position="0 -0.2 0.01"></a-entity>
+    </a-entity>
+
+    <!-- Dynamic group for discs & diamonds -->
+    <a-entity id="play" position="0 0 0"></a-entity>
+  </a-scene>
+
+  <script>
+    // ——————————————————————————————————————————————
+    // Disc_Duel XRArena (no‑dependency WebXR MVP)
+    // Embeddable in WordPress/Wix via a single HTML block.
+    // ——————————————————————————————————————————————
+
+    const hud = document.getElementById('hud');
+    const scoreAEl = document.getElementById('scoreA');
+    const scoreBEl = document.getElementById('scoreB');
+    const diamondEl = document.getElementById('diamondCount');
+
+    const scene = document.querySelector('a-scene');
+    const play = document.getElementById('play');
+    const goalA = document.getElementById('goalA');
+    const goalB = document.getElementById('goalB');
+    const spawnA = document.getElementById('spawnA');
+    const spawnB = document.getElementById('spawnB');
+
+    let scoreA = 0, scoreB = 0, diamonds = 0;
+
+    // Utility: create entity helper
+    function el(tag, attrs={}){
+      const e = document.createElement(tag);
+      for(const [k,v] of Object.entries(attrs)){
+        if (typeof v === 'object') e.setAttribute(k, Object.entries(v).map(([kk,vv])=>`${kk}: ${vv}`).join('; '));
+        else e.setAttribute(k, v);
+      }
+      return e;
+    }
+
+    // Compute cubic bezier point
+    function bezier(p0, p1, p2, p3, t){
+      const u=1-t, tt=t*t, uu=u*u, uuu=uu*u, ttt=tt*t;
+      return {
+        x: uuu*p0.x + 3*uu*t*p1.x + 3*u*tt*p2.x + ttt*p3.x,
+        y: uuu*p0.y + 3*uu*t*p1.y + 3*u*tt*p2.y + ttt*p3.y,
+        z: uuu*p0.z + 3*uu*t*p1.z + 3*u*tt*p2.z + ttt*p3.z
+      };
+    }
+
+    // Distance utility
+    const dist = (a,b)=>Math.hypot(a.x-b.x, a.y-b.y, a.z-b.z);
+
+    // Convert A-Frame vec3 string -> object
+    const vec = (s)=>{const [x,y,z] = s.split(' ').map(Number); return {x,y,z}};
+
+    // Diamonds along a given curve
+    function spawnDiamonds(curvePoints, count=5){
+      const group = el('a-entity', {id:'diamonds'});
+      for(let i=1;i<=count;i++){
+        const t = i/(count+1);
+        const p = bezier(...curvePoints, t);
+        const d = el('a-entity', {
+          geometry: 'primitive: octahedron; radius: 0.12',
+          material: 'color: #ffc14a; metalness: .9; roughness: .15; emissive: #7a4d00; emissiveIntensity:.2',
+          position: `${p.x} ${p.y} ${p.z}`
+        });
+        d.classList.add('diamond');
+        group.appendChild(d);
+      }
+      play.appendChild(group);
+      return group;
+    }
+
+    function clearGroup(){
+      while(play.firstChild) play.removeChild(play.firstChild);
+      diamonds = 0; diamondEl.textContent = diamonds;
+    }
+
+    function flashGoal(goalEl){
+      const orig = goalEl.getAttribute('color');
+      goalEl.setAttribute('color', '#ffffff');
+      setTimeout(()=>goalEl.setAttribute('color', orig), 160);
+    }
+
+    // Throw a disc from spawnA -> goalB (Team A attack) with chosen arc
+    function throwDisc({arc='low', attacker='A'}={}){
+      const fromEl = attacker==='A' ? spawnA : spawnB;
+      const toEl   = attacker==='A' ? goalB  : goalA;
+
+      const p0 = {...vec(fromEl.getAttribute('position')), y: 1.20};
+      const p3 = {...vec(toEl.getAttribute('position')),  y: 0.14};
+
+      const mid = {x:(p0.x+p3.x)/2, y:(p0.y+p3.y)/2, z:(p0.z+p3.z)/2};
+      const height = arc==='high' ? 4.0 : 1.8;
+      const p1 = {x: (p0.x+mid.x)/2, y: mid.y+height, z: (p0.z+mid.z)/2};
+      const p2 = {x: (mid.x+p3.x)/2, y: mid.y+height*0.66, z: (mid.z+p3.z)/2};
+
+      const disc = el('a-entity', {
+        geometry: 'primitive: cylinder; radius: 0.14; height: 0.024',
+        material: 'color: #e6e9f2; metalness:.85; roughness:.2',
+        position: `${p0.x} ${p0.y} ${p0.z}`
+      });
+      disc.setAttribute('rotation', '90 0 0');
+      play.appendChild(disc);
+
+      // Diamonds for this run
+      const curvePoints = [p0,p1,p2,p3];
+      const diamondGroup = spawnDiamonds(curvePoints, arc==='high'?7:4);
+
+      // Animate along bezier
+      let t=0; const duration = arc==='high'? 2200 : 1600; // ms
+      const spin = arc==='high' ? 1400 : 900; // deg/sec
+      const start = performance.now();
+
+      function step(now){
+        t = Math.min(1, (now-start)/duration);
+        const p = bezier(p0,p1,p2,p3,t);
+        disc.setAttribute('position', `${p.x} ${p.y} ${p.z}`);
+        // Spin around Z for disc feel
+        const rot = disc.getAttribute('rotation');
+        disc.setAttribute('rotation', `${rot.x} ${( (now-start)/1000 * spin ).toFixed(2)} ${rot.z}`);
+
+        // Diamond pickups
+        const ds = diamondGroup.querySelectorAll('.diamond');
+        ds.forEach(d=>{
+          const dp = vec(d.getAttribute('position'));
+          if (!d.getAttribute('visible')) return;
+          if (dist(p, dp) < 0.35){
+            d.setAttribute('visible', false);
+            diamonds++; diamondEl.textContent = diamonds;
+          }
+        });
+
+        if (t<1) requestAnimationFrame(step);
+        else {
+          // Scoring check
+          const endInside = dist(p3, vec(toEl.getAttribute('position'))) < 0.9;
+          if (endInside){
+            if (attacker==='A'){ scoreA++; scoreAEl.textContent = scoreA; } else { scoreB++; scoreBEl.textContent = scoreB; }
+            flashGoal(toEl);
+          }
+          // Subtle poof on land
+          const puff = el('a-entity', {geometry:'primitive: circle; radius: 0.22', material:'color:#d8dde8; opacity:.25', rotation:'-90 0 0', position:`${p3.x} 0.02 ${p3.z}`});
+          play.appendChild(puff);
+          setTimeout(()=>puff.parentNode && puff.parentNode.removeChild(puff), 380);
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    // Buttons (desktop & VR laser)
+    const throwLowBtn  = document.getElementById('throwLow');
+    const throwHighBtn = document.getElementById('throwHigh');
+    const resetBtn     = document.getElementById('resetBtn');
+
+    throwLowBtn.addEventListener('click', ()=> throwDisc({arc:'low', attacker: Math.random()<.5 ? 'A' : 'B'}));
+    throwHighBtn.addEventListener('click',()=> throwDisc({arc:'high',attacker: Math.random()<.5 ? 'A' : 'B'}));
+    resetBtn.addEventListener('click', ()=>{ scoreA=0;scoreB=0;scoreAEl.textContent=0;scoreBEl.textContent=0; clearGroup(); });
+
+    // Optional: hook HUD buttons into VR via raycaster by making them real DOM (A-Frame supports DOM overlays in many headsets).
+    // If you want in-scene 3D UI instead, convert buttons to <a-plane> with the "class: ui" and listen for 'click' using cursor + raycaster.
+
+    // ——— Embedding Guidance ———
+    // • Put this entire file into a WordPress "Custom HTML" block or Wix Embed. Ensure site is served over HTTPS.
+    // • For analytics, POST lightweight events from button handlers to your Firebase HTTPS functions.
+    //   Example (pseudo): fetch('https://your-cloudfn.app/logThrow', {method:'POST', body: JSON.stringify({arc, attacker, diamonds})})
+    // • For full controller-based throwing/grabbing later, we can layer in physics (ammo.js) or controller velocity sampling.
+  </script>
+  <script>
+    // Quick runtime check: show help if A-Frame failed
+    if(!window.AFRAME){document.getElementById('xr-error').style.display='block';}
+  </script>
+</body>
+</html>
